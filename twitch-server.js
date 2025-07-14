@@ -9,6 +9,25 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+// Calculate account age in human-readable format
+function calculateAccountAge(createdAt) {
+  const now = new Date();
+  const created = new Date(createdAt);
+  const diffMs = now - created;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const years = Math.floor(diffDays / 365);
+  const months = Math.floor((diffDays % 365) / 30);
+  return years > 0 ? `${years} years, ${months} months` : `${months} months`;
+}
+
+// Calculate age in days
+function calculateAgeDays(createdAt) {
+  const now = new Date();
+  const created = new Date(createdAt);
+  const diffMs = now - created;
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 // Twitch age checker endpoint
 app.post('/api/twitch/:username', async (req, res) => {
   try {
@@ -36,19 +55,39 @@ app.post('/api/twitch/:username', async (req, res) => {
     });
     const token = tokenResponse.data.access_token;
 
-    const response = await axios.get(`https://api.twitch.tv/helix/users?login=${req.params.username}`, {
+    // Get user data
+    const userResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${req.params.username}`, {
       headers: {
         'Client-Id': process.env.TWITCH_CLIENT_ID,
         Authorization: `Bearer ${token}`,
       },
     });
-    const user = response.data.data[0];
+    const user = userResponse.data.data[0];
     if (!user) throw new Error('User not found');
+
+    // Get followers count
+    let followers = 0;
+    const followersResponse = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${user.id}`, {
+      headers: {
+        'Client-Id': process.env.TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    followers = followersResponse.data.total || 0;
+
     res.json({
       username: user.login,
-      created_at: user.created_at,
-      followers: user.followers_count || 0, // Note: May need separate API call for followers
-      bio: user.description || 'N/A',
+      nickname: user.display_name,
+      estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
+      account_age: calculateAccountAge(user.created_at),
+      age_days: calculateAgeDays(user.created_at),
+      followers: followers,
+      total_likes: 'N/A', // Twitch API doesn't provide direct likes count
+      verified: user.broadcaster_type ? user.broadcaster_type.charAt(0).toUpperCase() + user.broadcaster_type.slice(1) : 'No',
+      description: user.description || 'N/A',
+      region: 'N/A', // Twitch API doesn't provide region
+      user_id: user.id,
+      avatar: user.profile_image_url || 'https://via.placeholder.com/50',
     });
   } catch (error) {
     res.status(error.response?.status || 500).json({
