@@ -1,9 +1,9 @@
 {
-  "name": "social-age-checker-[x|twitch]",
+  "name": "social-age-checker-twitch",
   "version": "1.0.0",
-  "main": "[x-server.js|twitch-server.js]",
+  "main": "twitch-backend.js",
   "scripts": {
-    "start": "node [x-server.js|twitch-server.js]"
+    "start": "node twitch-backend.js"
   },
   "dependencies": {
     "express": "^4.18.2",
