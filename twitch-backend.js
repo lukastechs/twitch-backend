@@ -28,12 +28,27 @@ function calculateAgeDays(createdAt) {
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
+// Generate Twitch App Access Token
+async function getTwitchAccessToken() {
+  try {
+    const response = await axios.post('https://id.twitch.tv/oauth2/token', {
+      client_id: process.env.TWITCH_CLIENT_ID,
+      client_secret: process.env.TWITCH_CLIENT_SECRET,
+      grant_type: 'client_credentials'
+    });
+    return response.data.access_token;
+  } catch (error) {
+    console.error('Twitch Token Error:', error.response?.data || error.message);
+    throw new Error('Failed to generate Twitch access token');
+  }
+}
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send('Twitch Account Age Checker API is running');
 });
 
-// Twitch age checker endpoint (POST for frontend with reCAPTCHA)
+// Twitch age checker endpoint (POST)
 app.post('/api/twitch/:username', async (req, res) => {
   try {
     // Verify reCAPTCHA
@@ -52,33 +67,23 @@ app.post('/api/twitch/:username', async (req, res) => {
       return res.status(400).json({ error: 'reCAPTCHA verification failed' });
     }
 
-    // Get Twitch App Access Token
-    const tokenResponse = await axios.post('https://id.twitch.tv/oauth2/token', {
-      client_id: process.env.TWITCH_CLIENT_ID,
-      client_secret: process.env.TWITCH_CLIENT_SECRET,
-      grant_type: 'client_credentials',
-    });
-    const token = tokenResponse.data.access_token;
+    // Get Twitch access token
+    const accessToken = await getTwitchAccessToken();
 
-    // Get user data
-    const userResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${req.params.username}`, {
-      headers: {
-        'Client-Id': process.env.TWITCH_CLIENT_ID,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const user = userResponse.data.data[0];
+    // Fetch Twitch user data
+    const response = await axios.get(
+      `https://api.twitch.tv/helix/users?login=${req.params.username}`,
+      {
+        headers: {
+          'Client-ID': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    const user = response.data.data[0];
     if (!user) throw new Error('User not found');
 
-    // Get followers count
-    let followers = 0;
-    const followersResponse = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${user.id}`, {
-      headers: {
-        'Client-Id': process.env.TWITCH_CLIENT_ID,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    followers = followersResponse.data.total || 0;
+    console.log('Twitch API Response:', JSON.stringify(user, null, 2));
 
     res.json({
       username: user.login,
@@ -86,69 +91,19 @@ app.post('/api/twitch/:username', async (req, res) => {
       estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
       account_age: calculateAccountAge(user.created_at),
       age_days: calculateAgeDays(user.created_at),
-      followers: followers,
-      total_likes: 'N/A',
-      verified: user.broadcaster_type ? user.broadcaster_type.charAt(0).toUpperCase() + user.broadcaster_type.slice(1) : 'No',
+      followers: 0, // Helix API doesn't provide followers directly
+      total_posts: 0, // Not available in users endpoint
+      verified: user.broadcaster_type === 'partner' ? 'Yes' : 'No',
       description: user.description || 'N/A',
-      region: 'N/A',
+      region: 'N/A', // Twitch API doesn't provide region
       user_id: user.id,
-      avatar: user.profile_image_url || 'https://via.placeholder.com/50',
+      avatar: user.profile_image_url || 'https://via.placeholder.com/50'
     });
   } catch (error) {
+    console.error('Twitch API Error:', error.response?.data || error.message);
     res.status(error.response?.status || 500).json({
       error: error.message || 'Failed to fetch Twitch data',
-    });
-  }
-});
-
-// Twitch age checker endpoint (GET for testing, no reCAPTCHA)
-app.get('/api/twitch/:username', async (req, res) => {
-  try {
-    // Get Twitch App Access Token
-    const tokenResponse = await axios.post('https://id.twitch.tv/oauth2/token', {
-      client_id: process.env.TWITCH_CLIENT_ID,
-      client_secret: process.env.TWITCH_CLIENT_SECRET,
-      grant_type: 'client_credentials',
-    });
-    const token = tokenResponse.data.access_token;
-
-    // Get user data
-    const userResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${req.params.username}`, {
-      headers: {
-        'Client-Id': process.env.TWITCH_CLIENT_ID,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const user = userResponse.data.data[0];
-    if (!user) throw new Error('User not found');
-
-    // Get followers count
-    let followers = 0;
-    const followersResponse = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${user.id}`, {
-      headers: {
-        'Client-Id': process.env.TWITCH_CLIENT_ID,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    followers = followersResponse.data.total || 0;
-
-    res.json({
-      username: user.login,
-      nickname: user.display_name,
-      estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
-      account_age: calculateAccountAge(user.created_at),
-      age_days: calculateAgeDays(user.created_at),
-      followers: followers,
-      total_likes: 'N/A',
-      verified: user.broadcaster_type ? user.broadcaster_type.charAt(0).toUpperCase() + user.broadcaster_type.slice(1) : 'No',
-      description: user.description || 'N/A',
-      region: 'N/A',
-      user_id: user.id,
-      avatar: user.profile_image_url || 'https://via.placeholder.com/50',
-    });
-  } catch (error) {
-    res.status(error.response?.status || 500).json({
-      error: error.message || 'Failed to fetch Twitch data',
+      details: error.response?.data || 'No additional details'
     });
   }
 });
