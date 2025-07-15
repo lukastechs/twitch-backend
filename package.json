@@ -1,14 +1,14 @@
 {
-  "name": "social-age-checker-twitch",
+  "name": "twitch-backend",
   "version": "1.0.0",
   "main": "twitch-backend.js",
   "scripts": {
     "start": "node twitch-backend.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.8",
+    "express": "^4.17.1",
+    "axios": "^1.4.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.0.0"
   }
 }
