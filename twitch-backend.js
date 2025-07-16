@@ -47,7 +47,8 @@ async function getTwitchAccessToken() {
       client_secret: process.env.TWITCH_CLIENT_SECRET,
       grant_type: 'client_credentials'
     }, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 5000
     });
 
     const { access_token, expires_in } = response.data;
@@ -67,7 +68,7 @@ async function getTwitchAccessToken() {
   }
 }
 
-// Get follower count with retry and caching
+// Get follower count with retry
 async function getFollowerCount(userId, token, retries = 1) {
   const cacheKey = userId;
   const cached = cache.followers.get(cacheKey);
@@ -85,7 +86,7 @@ async function getFollowerCount(userId, token, retries = 1) {
       timeout: 5000
     });
 
-    const followers = response.data.total;
+    const followers = response.data.total || 0;
     cache.followers.set(cacheKey, { followers, timestamp: Date.now() });
     console.log(`Fetched followers for userId ${userId}: ${followers}`);
     return followers;
@@ -101,7 +102,8 @@ async function getFollowerCount(userId, token, retries = 1) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       return getFollowerCount(userId, token, retries - 1);
     }
-    return null;
+    console.warn(`Failed to fetch followers for userId ${userId}, returning 0`);
+    return 0;
   }
 }
 
@@ -140,14 +142,14 @@ app.get('/api/twitch/:username', async (req, res) => {
       estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
       account_age: calculateAccountAge(user.created_at),
       age_days: calculateAgeDays(user.created_at),
-      followers: followers ?? 0,
+      followers,
       total_posts: null, // Not available in Helix API
       verified: user.broadcaster_type === 'partner' || user.broadcaster_type === 'affiliate' ? 'Yes' : 'No',
       description: user.description || 'N/A',
-      region: 'N/A', // No region data in Helix API; could parse description (e.g., 'USA' in bio)
+      region: 'N/A', // No region data in Helix API
       user_id: user.id,
       avatar: user.profile_image_url || 'https://via.placeholder.com/50',
-      estimation_confidence: 'High', // Exact date from API
+      estimation_confidence: 'High',
       accuracy_range: 'Exact'
     });
   } catch (error) {
