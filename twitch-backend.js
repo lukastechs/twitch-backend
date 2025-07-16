@@ -78,7 +78,7 @@ async function getFollowerCount(userId, token, retries = 1) {
   }
 
   try {
-    const response = await axios.get(`https://api.twitch.tv/helix/users/followers?to_id=${userId}&first=1`, {
+    const response = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${userId}&first=1`, {
       headers: {
         'Client-ID': process.env.TWITCH_CLIENT_ID,
         'Authorization': `Bearer ${token}`
