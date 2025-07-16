@@ -86,7 +86,7 @@ app.get('/api/twitch/:username', async (req, res) => {
       estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
       account_age: calculateAccountAge(user.created_at),
       age_days: calculateAgeDays(user.created_at),
-      followers: "Available on App", // Removed due to deprecated /helix/users/follows endpoint
+      followers: "Visit Profile", // Removed due to deprecated /helix/users/follows endpoint
       total_posts: "Unavailable", // Not available in Helix API
       verified: user.broadcaster_type === 'partner' || user.broadcaster_type === 'affiliate' ? 'Yes' : 'No',
       description: user.description || 'N/A',
