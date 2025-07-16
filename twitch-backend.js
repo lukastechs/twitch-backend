@@ -29,7 +29,7 @@ function calculateAgeDays(createdAt) {
 }
 
 // Generate Twitch App Access Token
-async function getTwitchAccessToken() {
+async function getAppAccessToken() {
   try {
     const response = await axios.post('https://id.twitch.tv/oauth2/token', {
       client_id: process.env.TWITCH_CLIENT_ID,
@@ -40,16 +40,15 @@ async function getTwitchAccessToken() {
       timeout: 5000
     });
 
-    const { access_token, expires_in } = response.data;
-    console.log('Fetched new access token');
-    return access_token;
+    console.log('Fetched new app access token');
+    return response.data.access_token;
   } catch (error) {
-    console.error('Twitch Token Error:', {
+    console.error('App Token Error:', {
       status: error.response?.status,
       data: error.response?.data,
       message: error.message
     });
-    throw new Error('Failed to generate Twitch access token');
+    throw new Error('Failed to generate app access token');
   }
 }
 
@@ -66,7 +65,7 @@ app.get('/api/twitch/:username', async (req, res) => {
   }
 
   try {
-    const token = await getTwitchAccessToken();
+    const token = await getAppAccessToken();
     const response = await axios.get(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(username)}`, {
       headers: {
         'Client-ID': process.env.TWITCH_CLIENT_ID,
@@ -86,11 +85,11 @@ app.get('/api/twitch/:username', async (req, res) => {
       estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
       account_age: calculateAccountAge(user.created_at),
       age_days: calculateAgeDays(user.created_at),
-      followers: "Visit Profile", // Removed due to deprecated /helix/users/follows endpoint
-      total_posts: "Unavailable", // Not available in Helix API
+      followers: "Check Profile",
+      total_posts: "Unavailable",
       verified: user.broadcaster_type === 'partner' || user.broadcaster_type === 'affiliate' ? 'Yes' : 'No',
       description: user.description || 'N/A',
-      region: 'N/A', // No region data in Helix API
+      region: 'N/A',
       user_id: user.id,
       avatar: user.profile_image_url || 'https://via.placeholder.com/50',
       estimation_confidence: 'High',
@@ -117,30 +116,3 @@ app.get('/health', (req, res) => {
 app.listen(port, () => {
   console.log(`Twitch Server running on port ${port}`);
 });
-
-/* 
-// Optional: Use GET /helix/channels/followers with user access token
-// Requires OAuth Authorization Code Flow with moderator:read:follows scope
-async function getFollowerCount(userId, token) {
-  try {
-    const response = await axios.get(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${userId}&first=1`, {
-      headers: {
-        'Client-ID': process.env.TWITCH_CLIENT_ID,
-        'Authorization': `Bearer ${token}` // Must be user access token
-      },
-      timeout: 5000
-    });
-
-    const followers = response.data.total || 0;
-    console.log(`Fetched followers for userId ${userId}: ${followers}`);
-    return followers;
-  } catch (error) {
-    console.error('Follower Count Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-    return null;
-  }
-}
-*/
