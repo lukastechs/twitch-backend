@@ -1,14 +1,19 @@
 {
-  "name": "twitch-backend",
-  "version": "1.0.0",
-  "main": "twitch-backend.js",
-  "scripts": {
-    "start": "node twitch-backend.js"
-  },
-  "dependencies": {
-    "express": "^4.17.1",
-    "axios": "^1.4.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.0"
-  }
-}
+       "name": "twitch-backend",
+       "version": "1.0.0",
+       "description": "Backend for Twitch Age Checker",
+       "main": "twitch-backend.js",
+       "scripts": {
+         "start": "node twitch-backend.js",
+         "dev": "nodemon twitch-backend.js"
+       },
+       "dependencies": {
+         "axios": "^1.7.2",
+         "cors": "^2.8.5",
+         "dotenv": "^16.4.5",
+         "express": "^4.19.2"
+       },
+       "devDependencies": {
+         "nodemon": "^3.1.4"
+       }
+     }
