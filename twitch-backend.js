@@ -4,10 +4,10 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const port = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
 
 // Calculate account age in human-readable format
 function calculateAccountAge(createdAt) {
@@ -35,6 +35,8 @@ async function getTwitchAccessToken() {
       client_id: process.env.TWITCH_CLIENT_ID,
       client_secret: process.env.TWITCH_CLIENT_SECRET,
       grant_type: 'client_credentials'
+    }, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
     return response.data.access_token;
   } catch (error) {
@@ -43,47 +45,49 @@ async function getTwitchAccessToken() {
   }
 }
 
+// Get follower count
+async function getFollowerCount(userId, token) {
+  try {
+    const response = await axios.get(`https://api.twitch.tv/helix/users/follows?to_id=${userId}`, {
+      headers: {
+        'Client-ID': process.env.TWITCH_CLIENT_ID,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.data.total;
+  } catch (error) {
+    console.error('Follower Count Error:', error.response?.data || error.message);
+    return null;
+  }
+}
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.send('Twitch Account Age Checker API is running');
 });
 
-// Twitch age checker endpoint (POST)
-app.post('/api/twitch/:username', async (req, res) => {
+// Twitch age checker endpoint (GET)
+app.get('/api/twitch/:username', async (req, res) => {
+  const { username } = req.params;
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
   try {
-    // Verify reCAPTCHA
-    const recaptchaResponse = req.body.recaptcha;
-    if (!recaptchaResponse) {
-      return res.status(400).json({ error: 'reCAPTCHA required' });
-    }
-    const recaptchaVerify = await axios.post(
-      `https://www.google.com/recaptcha/api/siteverify`,
-      new URLSearchParams({
-        secret: process.env.RECAPTCHA_SECRET_KEY,
-        response: recaptchaResponse,
-      })
-    );
-    if (!recaptchaVerify.data.success) {
-      return res.status(400).json({ error: 'reCAPTCHA verification failed' });
-    }
-
-    // Get Twitch access token
-    const accessToken = await getTwitchAccessToken();
-
-    // Fetch Twitch user data
-    const response = await axios.get(
-      `https://api.twitch.tv/helix/users?login=${req.params.username}`,
-      {
-        headers: {
-          'Client-ID': process.env.TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${accessToken}`
-        }
+    const token = await getTwitchAccessToken();
+    const response = await axios.get(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(username)}`, {
+      headers: {
+        'Client-ID': process.env.TWITCH_CLIENT_ID,
+        'Authorization': `Bearer ${token}`
       }
-    );
-    const user = response.data.data[0];
-    if (!user) throw new Error('User not found');
+    });
 
-    console.log('Twitch API Response:', JSON.stringify(user, null, 2));
+    const user = response.data.data[0];
+    if (!user) {
+      return res.status(404).json({ error: `User ${username} not found` });
+    }
+
+    const followers = await getFollowerCount(user.id, token);
 
     res.json({
       username: user.login,
@@ -91,13 +95,15 @@ app.post('/api/twitch/:username', async (req, res) => {
       estimated_creation_date: new Date(user.created_at).toLocaleDateString(),
       account_age: calculateAccountAge(user.created_at),
       age_days: calculateAgeDays(user.created_at),
-      followers: 0, // Helix API doesn't provide followers directly
-      total_posts: 0, // Not available in users endpoint
-      verified: user.broadcaster_type === 'partner' ? 'Yes' : 'No',
+      followers: followers ?? 0,
+      total_posts: null, // Not available in Helix API
+      verified: user.broadcaster_type === 'partner' || user.broadcaster_type === 'affiliate' ? 'Yes' : 'No',
       description: user.description || 'N/A',
-      region: 'N/A', // Twitch API doesn't provide region
+      region: 'N/A', // Not directly available
       user_id: user.id,
-      avatar: user.profile_image_url || 'https://via.placeholder.com/50'
+      avatar: user.profile_image_url || 'https://via.placeholder.com/50',
+      estimation_confidence: 'High', // Exact date from API
+      accuracy_range: 'Exact'
     });
   } catch (error) {
     console.error('Twitch API Error:', error.response?.data || error.message);
@@ -113,6 +119,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`Twitch Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Twitch Server running on port ${port}`);
 });
